@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Resume Analyzer</title>
+    <style>
+      :root {
+        --ink: #0f172a;
+        --muted: #475569;
+        --accent: #0ea5e9;
+        --card: #ffffff;
+        --shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+      }
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        color: var(--ink);
+        background: linear-gradient(135deg, #f1f5f9, #e0f2fe);
+        margin: 0;
+        padding: 32px 16px;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      h1 {
+        margin-top: 0;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: var(--shadow);
+      }
+      textarea {
+        width: 100%;
+        min-height: 140px;
+        padding: 10px;
+        margin-top: 6px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
+        font-size: 14px;
+      }
+      button {
+        margin-top: 10px;
+        background: var(--accent);
+        color: white;
+        border: 0;
+        padding: 10px 16px;
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>Resume Analyzer (Frontend)</h1>
+        <p>Paste your resume and job description, then submit.</p>
+        <form action="http://127.0.0.1:8000/analyze" method="post" enctype="multipart/form-data">
+          <label>Resume Text</label>
+          <textarea name="resume_text"></textarea>
+          <label>Job Description</label>
+          <textarea name="job_description"></textarea>
+          <button type="submit">Analyze</button>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>

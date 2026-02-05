@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>AI Resume Analyzer</title>
+    <style>
+      :root {
+        --ink: #0f172a;
+        --muted: #475569;
+        --accent: #0ea5e9;
+        --bg: #f7f7fb;
+        --card: #ffffff;
+        --shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+      }
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        color: var(--ink);
+        background: radial-gradient(circle at top left, #e0f2fe, #f7f7fb 55%);
+        margin: 0;
+        padding: 32px 16px;
+      }
+      .container {
+        max-width: 980px;
+        margin: 0 auto;
+      }
+      header {
+        margin-bottom: 24px;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 32px;
+      }
+      .subtitle {
+        color: var(--muted);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: var(--shadow);
+      }
+      label {
+        font-weight: 600;
+      }
+      textarea {
+        width: 100%;
+        min-height: 160px;
+        padding: 10px;
+        margin-top: 6px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
+        font-size: 14px;
+      }
+      input[type="file"] {
+        margin-top: 6px;
+      }
+      button {
+        background: var(--accent);
+        color: white;
+        border: 0;
+        padding: 10px 16px;
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      @media (min-width: 860px) {
+        .grid {
+          grid-template-columns: 2fr 1fr;
+          align-items: start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>AI-Powered Resume Analyzer</h1>
+        <div class="subtitle">Upload a resume or paste text, add a job description, and get an ATS-style match score.</div>
+      </header>
+      <div class="grid">
+        <section class="card">
+          <form action="http://127.0.0.1:8000/analyze" method="post" enctype="multipart/form-data">
+            <label>Resume PDF (optional)</label><br/>
+            <input type="file" name="resume_file" accept=".pdf,.txt"/><br/><br/>
+
+            <label>Resume Text</label>
+            <textarea name="resume_text" placeholder="Paste resume text here..."></textarea>
+
+            <label>Job Description</label>
+            <textarea name="job_description" placeholder="Paste job description here..."></textarea>
+
+            <div class="row">
+              <button type="submit">Analyze</button>
+            </div>
+          </form>
+        </section>
+        <section class="card">
+          <h2>ATS Result</h2>
+          <p>Run the backend and submit the form to see results here.</p>
+        </section>
+      </div>
+    </div>
+  </body>
+</html>

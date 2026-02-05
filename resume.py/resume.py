@@ -13,8 +13,10 @@ def _normalize(text):
 def analyze_resume(resume_text, job_description):
     resume_text = (resume_text or "").strip()
     job_description = (job_description or "").strip()
-    if not resume_text or not job_description:
-        raise ValueError("Both resume text and job description are required.")
+    if not resume_text:
+        raise ValueError("Resume text is required.")
+    if not job_description:
+        raise ValueError("Job description is required.")
 
     resume_clean = _normalize(resume_text)
     jd_clean = _normalize(job_description)

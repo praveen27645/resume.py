@@ -15,3 +15,8 @@ The AI-Powered Resume Analyzer & Job Matcher is an NLP-driven tool that compares
 ```
 python -u .\resume.py\resume.py
 ```
+
+## Web App
+```
+uvicorn main:app --reload
+```
