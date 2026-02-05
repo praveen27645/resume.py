@@ -28,4 +28,6 @@ jobs:
           python -m black . --check
 
       - name: Tests
+        env:
+          RESUME_ANALYZER_DISABLE_EMBEDDINGS: "1"
         run: python -m pytest -q

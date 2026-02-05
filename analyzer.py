@@ -83,6 +83,10 @@ def _get_nlp():
 
 @lru_cache(maxsize=1)
 def _get_embedder():
+    if os.getenv("RESUME_ANALYZER_DISABLE_EMBEDDINGS") == "1":
+        return None
+    if os.getenv("CI", "").lower() == "true":
+        return None
     if SentenceTransformer is None:
         return None
     try:
