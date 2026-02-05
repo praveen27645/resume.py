@@ -1,5 +1,9 @@
+import json
+import os
 import re
+from dataclasses import dataclass, field
 from functools import lru_cache
+from typing import Mapping
 
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -27,6 +31,46 @@ _SYNONYMS = {
 }
 
 
+@dataclass(frozen=True)
+class AnalyzerConfig:
+    top_n: int = 30
+    weights: tuple[float, float, float] = (0.4, 0.4, 0.2)
+    synonyms: Mapping[str, str] = field(default_factory=lambda: dict(_SYNONYMS))
+
+
+def _normalize_weights(weights: tuple[float, float, float]) -> tuple[float, float, float]:
+    total = sum(weights)
+    if total <= 0:
+        return (0.4, 0.4, 0.2)
+    return tuple(w / total for w in weights)
+
+
+def load_config(path: str | None = None) -> AnalyzerConfig:
+    config_path = path or os.getenv("RESUME_ANALYZER_CONFIG")
+    if not config_path:
+        return AnalyzerConfig()
+    try:
+        with open(config_path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except Exception:
+        return AnalyzerConfig()
+
+    try:
+        top_n = int(data.get("top_n", 30))
+    except Exception:
+        top_n = 30
+    top_n = max(5, top_n)
+    raw_weights = data.get("weights", [0.4, 0.4, 0.2])
+    if isinstance(raw_weights, list) and len(raw_weights) == 3:
+        weights = _normalize_weights(tuple(float(w) for w in raw_weights))
+    else:
+        weights = (0.4, 0.4, 0.2)
+    synonyms = dict(_SYNONYMS)
+    for key, value in (data.get("synonyms") or {}).items():
+        synonyms[str(key).lower()] = str(value).lower()
+    return AnalyzerConfig(top_n=top_n, weights=weights, synonyms=synonyms)
+
+
 @lru_cache(maxsize=1)
 def _get_nlp():
     if spacy is None:
@@ -47,20 +91,20 @@ def _get_embedder():
         return None
 
 
-def _normalize(text: str) -> str:
+def _normalize(text: str, synonyms: Mapping[str, str]) -> str:
     tokens = re.findall(r"[a-z0-9]+", text.lower())
     expanded = []
     for tok in tokens:
         expanded.append(tok)
-        if tok in _SYNONYMS:
-            expanded.extend(_SYNONYMS[tok].split())
+        if tok in synonyms:
+            expanded.extend(synonyms[tok].split())
     return " ".join(expanded)
 
 
-def _lemmatize(text: str) -> str:
+def _lemmatize(text: str, synonyms: Mapping[str, str]) -> str:
     nlp = _get_nlp()
     if nlp is None:
-        return _normalize(text)
+        return _normalize(text, synonyms)
     doc = nlp(text.lower())
     tokens = []
     for token in doc:
@@ -69,7 +113,7 @@ def _lemmatize(text: str) -> str:
         lemma = token.lemma_.strip()
         if lemma:
             tokens.append(lemma)
-    return _normalize(" ".join(tokens))
+    return _normalize(" ".join(tokens), synonyms)
 
 
 def _extract_skills_section(text: str) -> str:
@@ -109,10 +153,10 @@ def _semantic_score(resume_text: str, job_description: str) -> float:
 
 
 @lru_cache(maxsize=64)
-def _jd_features(jd_clean: str):
-    vectorizer = TfidfVectorizer(stop_words="english")
+def _jd_features(jd_clean: str, top_n: int):
+    vectorizer = TfidfVectorizer(stop_words="english", max_features=top_n)
     jd_vec = vectorizer.fit_transform([jd_clean])
-    jd_keywords = _keyword_list(jd_clean, top_n=30)
+    jd_keywords = _keyword_list(jd_clean, top_n=top_n)
     jd_embed = None
     embedder = _get_embedder()
     if embedder is not None:
@@ -134,7 +178,11 @@ def _suggest_bullets(missing_keywords: list[str]) -> list[str]:
     return bullets[: min(3, len(bullets))]
 
 
-def analyze_resume_full(resume_text: str, job_description: str):
+def analyze_resume_full(
+    resume_text: str,
+    job_description: str,
+    config: AnalyzerConfig | None = None,
+):
     resume_text = (resume_text or "").strip()
     job_description = (job_description or "").strip()
     if not resume_text:
@@ -142,10 +190,11 @@ def analyze_resume_full(resume_text: str, job_description: str):
     if not job_description:
         raise ValueError("Job description is required.")
 
-    resume_clean = _lemmatize(resume_text)
-    jd_clean = _lemmatize(job_description)
+    cfg = config or AnalyzerConfig()
+    resume_clean = _lemmatize(resume_text, cfg.synonyms)
+    jd_clean = _lemmatize(job_description, cfg.synonyms)
 
-    vectorizer, jd_vec, jd_keywords, jd_embed = _jd_features(jd_clean)
+    vectorizer, jd_vec, jd_keywords, jd_embed = _jd_features(jd_clean, cfg.top_n)
     resume_vec = vectorizer.transform([resume_clean])
     tfidf_sim = cosine_similarity(resume_vec, jd_vec)[0][0]
 
@@ -156,7 +205,7 @@ def analyze_resume_full(resume_text: str, job_description: str):
     else:
         sem_sim = _semantic_score(resume_clean, jd_clean)
     resume_tokens = set(resume_clean.split())
-    skills_text = _lemmatize(_extract_skills_section(resume_text))
+    skills_text = _lemmatize(_extract_skills_section(resume_text), cfg.synonyms)
     skills_tokens = set(skills_text.split())
 
     if jd_keywords:
@@ -166,7 +215,8 @@ def analyze_resume_full(resume_text: str, job_description: str):
     else:
         keyword_score = 0.0
 
-    final_score = (0.4 * tfidf_sim + 0.4 * sem_sim + 0.2 * keyword_score) * 100
+    w_tfidf, w_sem, w_kw = cfg.weights
+    final_score = (w_tfidf * tfidf_sim + w_sem * sem_sim + w_kw * keyword_score) * 100
     ats_score = round(final_score, 2)
 
     missing_keywords = sorted([k for k in jd_keywords if k not in resume_tokens])
@@ -175,14 +225,24 @@ def analyze_resume_full(resume_text: str, job_description: str):
     suggested_keywords = missing_top
     suggested_bullets = _suggest_bullets(missing_top)
 
+    match_rate = round((matches / len(jd_keywords)) * 100, 2) if jd_keywords else 0.0
+    skills_rate = round((skills_matches / len(jd_keywords)) * 100, 2) if jd_keywords else 0.0
+    breakdown = {
+        "tfidf_similarity": round(tfidf_sim * 100, 2),
+        "semantic_similarity": round(sem_sim * 100, 2),
+        "keyword_match_rate": match_rate,
+        "skills_match_rate": skills_rate,
+    }
+
     return {
         "score": ats_score,
         "missing_keywords": missing_top,
         "suggested_keywords": suggested_keywords,
         "suggested_bullets": suggested_bullets,
+        "breakdown": breakdown,
     }
 
 
-def analyze_resume(resume_text: str, job_description: str):
-    result = analyze_resume_full(resume_text, job_description)
+def analyze_resume(resume_text: str, job_description: str, config: AnalyzerConfig | None = None):
+    result = analyze_resume_full(resume_text, job_description, config=config)
     return result["score"], result["missing_keywords"]

@@ -1,0 +1,23 @@
+Praveen Kumar
+Data Scientist | Bengaluru, India
+
+SUMMARY
+Data scientist with 4+ years of experience in building ML pipelines, NLP products, and analytics platforms.
+Strong Python, SQL, and cloud experience with production deployments.
+
+SKILLS
+Python, SQL, Pandas, NumPy, Scikit-learn, NLP, FastAPI, Docker, AWS, Git, CI/CD
+
+EXPERIENCE
+Data Scientist, BrightLabs (2022 - Present)
+- Built an NLP classifier that improved ticket routing accuracy by 22%.
+- Designed a feature store and retraining pipeline with Airflow and MLflow.
+- Deployed models on AWS with Docker and Terraform.
+
+ML Engineer, Nova Analytics (2020 - 2022)
+- Optimized recommendation models leading to 15% uplift in CTR.
+- Created data validation checks and automated monitoring dashboards.
+- Collaborated with product and engineering to define ML metrics.
+
+EDUCATION
+B.Tech in Computer Science, VTU (2016 - 2020)

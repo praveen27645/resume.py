@@ -1,0 +1,11 @@
+{
+  "top_n": 30,
+  "weights": [0.4, 0.4, 0.2],
+  "synonyms": {
+    "ml": "machine learning",
+    "ai": "artificial intelligence",
+    "k8s": "kubernetes",
+    "ci": "continuous integration",
+    "cd": "continuous delivery"
+  }
+}

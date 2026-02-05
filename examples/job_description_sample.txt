@@ -1,0 +1,14 @@
+We are hiring a Machine Learning Engineer to build scalable ML systems for personalization.
+
+Responsibilities
+- Design, train, and deploy machine learning models in production.
+- Build data pipelines using Python and SQL.
+- Collaborate with product and engineering to translate requirements into features.
+- Deploy services using Docker and Kubernetes on AWS.
+- Implement monitoring, A/B testing, and model performance tracking.
+
+Requirements
+- 3+ years of ML engineering experience.
+- Strong Python, SQL, and cloud experience (AWS or GCP).
+- Experience with NLP or recommender systems.
+- Familiarity with CI/CD, Terraform, and MLOps tools (Airflow, MLflow).
