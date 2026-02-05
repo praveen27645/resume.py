@@ -2,6 +2,8 @@
 
 The AI-Powered Resume Analyzer & Job Matcher is an NLP-driven tool that compares a resume against a job description, computes an ATS-style match score, and provides keyword + bullet suggestions to improve alignment.
 
+![CI](https://github.com/praveen27645/resume.py/actions/workflows/ci.yml/badge.svg)
+
 ## Features
 - ATS-style similarity scoring with TF-IDF + semantic signals
 - Missing keyword extraction for targeted improvements
@@ -9,6 +11,9 @@ The AI-Powered Resume Analyzer & Job Matcher is an NLP-driven tool that compares
 - Live web UI with match breakdown and exports
 - CLI mode with JSON output and config support
 - Sample inputs + resume template
+
+## Preview
+![UI Preview](assets/ui-preview.svg)
 
 ## Tech Stack
 - Python
@@ -53,3 +58,7 @@ You can set `RESUME_ANALYZER_CONFIG` to point to a JSON config file:
 ```
 RESUME_ANALYZER_CONFIG=./config.example.json
 ```
+
+## Docs
+- `docs/architecture.md`
+- `docs/api.md`
