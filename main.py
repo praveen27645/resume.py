@@ -1,5 +1,9 @@
 from fastapi import FastAPI, File, Form, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+import io
+import csv
+import uuid
+from datetime import datetime, timezone
 import re
 
 try:
@@ -7,39 +11,17 @@ try:
 except Exception:  # pragma: no cover - optional at runtime
     fitz = None
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+from fastapi.middleware.cors import CORSMiddleware
+
+from analyzer import analyze_resume, analyze_resume_full
 
 app = FastAPI(title="AI-Powered Resume Analyzer")
-
-
-def _normalize(text: str) -> str:
-    tokens = re.findall(r"[a-z0-9]+", text.lower())
-    return " ".join(tokens)
-
-
-def analyze_resume(resume_text: str, job_description: str):
-    resume_text = (resume_text or "").strip()
-    job_description = (job_description or "").strip()
-    if not resume_text:
-        raise ValueError("Resume text is required (paste it or upload a PDF).")
-    if not job_description:
-        raise ValueError("Job description is required.")
-
-    resume_clean = _normalize(resume_text)
-    jd_clean = _normalize(job_description)
-
-    vectorizer = TfidfVectorizer(stop_words="english")
-    tfidf_matrix = vectorizer.fit_transform([resume_clean, jd_clean])
-
-    similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
-    ats_score = round(similarity * 100, 2)
-
-    resume_words = set(resume_clean.split())
-    jd_words = set(jd_clean.split())
-    missing_keywords = sorted(jd_words - resume_words)
-
-    return ats_score, missing_keywords[:10]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def _extract_text_from_upload(upload: UploadFile) -> str:
@@ -62,8 +44,12 @@ def _extract_text_from_upload(upload: UploadFile) -> str:
 def _render_page(result=None, error=None, resume_text="", job_description=""):
     score = result["score"] if result else ""
     missing = result["missing"] if result else []
+    suggested = result.get("suggested", []) if result else []
+    bullets = result.get("bullets", []) if result else []
 
     missing_list = "".join(f"<li>{w}</li>" for w in missing) or "<li>None</li>"
+    suggested_list = "".join(f"<li>{w}</li>" for w in suggested) or "<li>None</li>"
+    bullets_list = "".join(f"<li>{w}</li>" for w in bullets) or "<li>None</li>"
     result_block = ""
     if result:
         result_block = f"""
@@ -77,6 +63,105 @@ def _render_page(result=None, error=None, resume_text="", job_description=""):
         """
 
     error_block = f'<div class="error">{error}</div>' if error else ""
+
+    script = """
+        <script>
+          const resumeEl = document.querySelector('textarea[name="resume_text"]');
+          const jdEl = document.querySelector('textarea[name="job_description"]');
+          const resultCard = document.getElementById('result-card');
+          const scoreText = document.getElementById('score-text');
+          const missingList = document.getElementById('missing-list');
+          const suggestedList = document.getElementById('suggested-list');
+          const bulletsList = document.getElementById('bullets-list');
+          const downloadJson = document.getElementById('download-json');
+          const downloadCsv = document.getElementById('download-csv');
+
+          let timer = null;
+          function debounceAnalyze() {
+            clearTimeout(timer);
+            timer = setTimeout(runAnalyze, 600);
+          }
+
+          async function runAnalyze() {
+            const resume = resumeEl.value.trim();
+            const jd = jdEl.value.trim();
+            if (!resume || !jd) {
+              resultCard.style.display = 'none';
+              return;
+            }
+            try {
+              const resp = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({resume_text: resume, job_description: jd})
+              });
+              const data = await resp.json();
+              if (!resp.ok) {
+                resultCard.style.display = 'none';
+                return;
+              }
+              scoreText.innerHTML = `Score: <strong>${data.score}%</strong>`;
+              missingList.innerHTML = (data.missing.length ? data.missing : ['None'])
+                .map(w => `<li>${w}</li>`).join('');
+              suggestedList.innerHTML = (data.suggested_keywords.length ? data.suggested_keywords : ['None'])
+                .map(w => `<li>${w}</li>`).join('');
+              bulletsList.innerHTML = (data.suggested_bullets.length ? data.suggested_bullets : ['None'])
+                .map(w => `<li>${w}</li>`).join('');
+              resultCard.style.display = 'block';
+            } catch (e) {
+              resultCard.style.display = 'none';
+            }
+          }
+
+          resumeEl.addEventListener('input', debounceAnalyze);
+          jdEl.addEventListener('input', debounceAnalyze);
+
+          async function fetchReport() {
+            const resume = resumeEl.value.trim();
+            const jd = jdEl.value.trim();
+            if (!resume || !jd) return null;
+            const resp = await fetch('/api/report', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({resume_text: resume, job_description: jd})
+            });
+            if (!resp.ok) return null;
+            return await resp.json();
+          }
+
+          function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+          }
+
+          downloadJson.addEventListener('click', async () => {
+            const report = await fetchReport();
+            if (!report) return;
+            const blob = new Blob([JSON.stringify(report, null, 2)], {type: 'application/json'});
+            downloadBlob(blob, `resume_report_${report.id}.json`);
+          });
+
+          downloadCsv.addEventListener('click', async () => {
+            const resume = resumeEl.value.trim();
+            const jd = jdEl.value.trim();
+            if (!resume || !jd) return;
+            const resp = await fetch('/api/missing.csv', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({resume_text: resume, job_description: jd})
+            });
+            if (!resp.ok) return;
+            const blob = await resp.blob();
+            downloadBlob(blob, 'missing_keywords.csv');
+          });
+        </script>
+    """
 
     return f"""
     <!doctype html>
@@ -155,6 +240,11 @@ def _render_page(result=None, error=None, resume_text="", job_description=""):
             gap: 12px;
             flex-wrap: wrap;
           }}
+          .ghost {{
+            background: transparent;
+            color: var(--accent);
+            border: 1px solid var(--accent);
+          }}
           .error {{
             background: #fee2e2;
             color: #991b1b;
@@ -187,7 +277,7 @@ def _render_page(result=None, error=None, resume_text="", job_description=""):
           {error_block}
           <div class="grid">
             <section class="card">
-              <form action="/analyze" method="post" enctype="multipart/form-data">
+              <form id="analyze-form" action="/analyze" method="post" enctype="multipart/form-data">
                 <label>Resume PDF (optional)</label><br/>
                 <input type="file" name="resume_file" accept=".pdf,.txt"/><br/><br/>
 
@@ -199,12 +289,25 @@ def _render_page(result=None, error=None, resume_text="", job_description=""):
 
                 <div class="row">
                   <button type="submit">Analyze</button>
+                  <button type="button" id="download-json" class="ghost">Download JSON</button>
+                  <button type="button" id="download-csv" class="ghost">Download CSV</button>
                 </div>
               </form>
             </section>
-            {result_block}
+            <section class="card result" id="result-card" style="display:{'block' if result else 'none'};">
+              <h2>ATS Result</h2>
+              <div class="score" id="score-text">Score: <strong>{score}%</strong></div>
+              <h3>Missing Keywords</h3>
+              <ul id="missing-list">{missing_list}</ul>
+              <h3>Suggested Keywords to Add</h3>
+              <ul id="suggested-list">{suggested_list}</ul>
+              <h3>Suggested Resume Bullets</h3>
+              <ul id="bullets-list">{bullets_list}</ul>
+              <p class="hint">Tip: add relevant missing keywords naturally in your skills or experience.</p>
+            </section>
           </div>
         </div>
+        {script}
       </body>
     </html>
     """
@@ -224,9 +327,14 @@ def analyze(
     try:
         if resume_file and resume_file.filename:
             resume_text = _extract_text_from_upload(resume_file)
-        score, missing = analyze_resume(resume_text, job_description)
+        full = analyze_resume_full(resume_text, job_description)
         return _render_page(
-            result={"score": score, "missing": missing},
+            result={
+                "score": full["score"],
+                "missing": full["missing_keywords"],
+                "suggested": full["suggested_keywords"],
+                "bullets": full["suggested_bullets"],
+            },
             resume_text=resume_text,
             job_description=job_description,
         )
@@ -236,3 +344,50 @@ def analyze(
             resume_text=resume_text,
             job_description=job_description,
         )
+
+
+@app.post("/api/analyze")
+def api_analyze(payload: dict):
+    resume_text = (payload.get("resume_text") or "").strip()
+    job_description = (payload.get("job_description") or "").strip()
+    full = analyze_resume_full(resume_text, job_description)
+    return {
+        "score": full["score"],
+        "missing": full["missing_keywords"],
+        "suggested_keywords": full["suggested_keywords"],
+        "suggested_bullets": full["suggested_bullets"],
+    }
+
+
+@app.post("/api/report")
+def api_report(payload: dict):
+    resume_text = (payload.get("resume_text") or "").strip()
+    job_description = (payload.get("job_description") or "").strip()
+    full = analyze_resume_full(resume_text, job_description)
+    report = {
+        "id": uuid.uuid4().hex[:10],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "score": full["score"],
+        "missing_keywords": full["missing_keywords"],
+        "suggested_keywords": full["suggested_keywords"],
+        "suggested_bullets": full["suggested_bullets"],
+    }
+    return JSONResponse(report)
+
+
+@app.post("/api/missing.csv")
+def api_missing_csv(payload: dict):
+    resume_text = (payload.get("resume_text") or "").strip()
+    job_description = (payload.get("job_description") or "").strip()
+    full = analyze_resume_full(resume_text, job_description)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["keyword"])
+    for kw in full["missing_keywords"]:
+        writer.writerow([kw])
+
+    output.seek(0)
+    filename = "missing_keywords.csv"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(output, media_type="text/csv", headers=headers)

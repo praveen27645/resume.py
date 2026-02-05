@@ -1,40 +1,12 @@
-import re
+import os
+import sys
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+# Allow running this file directly by adding project root to sys.path.
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-
-def _normalize(text):
-    # Keep only letters/numbers, collapse whitespace
-    tokens = re.findall(r"[a-z0-9]+", text.lower())
-    return " ".join(tokens)
-
-
-def analyze_resume(resume_text, job_description):
-    resume_text = (resume_text or "").strip()
-    job_description = (job_description or "").strip()
-    if not resume_text:
-        raise ValueError("Resume text is required.")
-    if not job_description:
-        raise ValueError("Job description is required.")
-
-    resume_clean = _normalize(resume_text)
-    jd_clean = _normalize(job_description)
-
-    # Convert texts into TF-IDF vectors
-    vectorizer = TfidfVectorizer(stop_words="english")
-    tfidf_matrix = vectorizer.fit_transform([resume_clean, jd_clean])
-
-    # Calculate cosine similarity (ATS score)
-    similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
-    ats_score = round(similarity * 100, 2)
-
-    # Identify missing keywords
-    resume_words = set(resume_clean.split())
-    jd_words = set(jd_clean.split())
-    missing_keywords = sorted(jd_words - resume_words)
-
-    return ats_score, missing_keywords[:10]
+from analyzer import analyze_resume
 
 
 if __name__ == "__main__":
