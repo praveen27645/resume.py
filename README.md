@@ -39,3 +39,17 @@ uvicorn main:app --reload
 ```
 
 Open `http://127.0.0.1:8000` in your browser and use the UI to analyze resumes, load samples, or export results.
+
+## Development
+```
+python -m pip install -r requirements.txt -r requirements-dev.txt
+python -m ruff check .
+python -m black . --check
+python -m pytest -q
+```
+
+## Environment
+You can set `RESUME_ANALYZER_CONFIG` to point to a JSON config file:
+```
+RESUME_ANALYZER_CONFIG=./config.example.json
+```

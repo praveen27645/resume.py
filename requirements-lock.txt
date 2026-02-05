@@ -1,0 +1,2 @@
+# Generated via pip-compile (recommended).
+# Run: python -m pip install pip-tools && pip-compile -o requirements-lock.txt requirements.txt
